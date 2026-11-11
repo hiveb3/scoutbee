@@ -305,11 +305,13 @@ print("final:", len(final), dict(why), "· web searches:", searches if BRAVE_KEY
 new_witness_voters = []
 if WEEK:
     try:
-        cur.execute("""SELECT account, approve FROM hafsql.operation_account_witness_vote_view
-                       WHERE witness = 'hive3' AND timestamp >= %s ORDER BY timestamp""", (NOW - dt.timedelta(days=7),))
+        head = rpc("condenser_api.get_dynamic_global_properties", [])["head_block_number"]
+        since = (head - 7 * 24 * 1200) << 32              # HAF operation id = block number << 32: one block every 3 seconds
+        cur.execute("""SELECT account, approve FROM hafsql.operation_account_witness_vote_table
+                       WHERE witness = 'hive3' AND id >= %s ORDER BY id""", (since,))
         last = {}
         for acc, approve in cur.fetchall(): last[acc] = approve           # the last action of the week counts
-        new_witness_voters = sorted(a for a, ok in last.items() if ok)
+        new_witness_voters = sorted(a for a, ok in last.items() if ok and a not in OWN)
         print(len(new_witness_voters), "new witness voters this week", flush=True)
     except Exception as e:
         print("witness voters: query failed", e, flush=True)
