@@ -3,7 +3,7 @@
 # Scout Bee - builds the Wildflower Watch web page from scout.py output.
 # Usage: python3 build_site.py OUTDIR SITEDIR   (OUTDIR has candidates.json + stats.json)  -> SITEDIR/index.html, SITEDIR/data.json
 import sys, os, json, html, datetime as dt
-BADGE = os.environ.get("WW_BADGE", "")   # URL of the small Wildflower Watch image added to comments (empty = text only)
+BADGE = os.environ.get("WW_BADGE", "https://files.peakd.com/file/peakd-hive/scoutbee/23tv8FN1R9BH4SXFPSPyWsC98xP8A6q7AvysRLoTGQwrT8hHgF8cYegcT9MKpSRockEVJ.png")   # small Wildflower Watch image added to comments
 
 OUT, SITE = sys.argv[1], sys.argv[2]
 os.makedirs(SITE, exist_ok=True)
