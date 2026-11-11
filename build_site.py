@@ -148,7 +148,7 @@ document.getElementById("list").addEventListener("click", async ev => {
     <div><span class="k">Quality score:</span> ${P.s||"?"} · personal voice ${P.fp||0}/100 words</div>
    </div>
    <div class="row">${voted?`<span class="badge ok">You already voted ✓</span>`:`<label>Vote weight <input type="range" min="1" max="100" value="50" class="w"> <b class="wv">50%</b></label> <button class="vb">👍 Vote</button>`}<span class="msg vm"></span></div>
-   <div style="margin-top:8px"><textarea class="ct" placeholder="Write a comment for ${esc(a)}…"></textarea>
+   <div style="margin-top:8px"><textarea class="ct" placeholder="Write a comment for ${esc(a)}…">${user?esc("Your post was found by the scout bee @"+user+" 🐝🌼\n\n"):""}</textarea>
    <label style="font-size:13px"><input type="checkbox" class="sig" checked> add a small "found via Wildflower Watch" signature</label>
    <div class="row"><button class="cb">💬 Comment</button><span class="msg cm"></span></div></div>`;
   const w = box.querySelector(".w"); if (w) w.oninput = () => box.querySelector(".wv").textContent = w.value+"%";
