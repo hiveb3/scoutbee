@@ -243,7 +243,14 @@ def _search(x):
             print("brave error", e, flush=True); continue
         for r in res:
             u = r.get("url", "").lower()
-            if any(h in u for h in HIVE_FRONTENDS): continue          # Hive itself: the post on any front-end, or curation posts quoting it
+            if any(h in u for h in HIVE_FRONTENDS):                   # on Hive: a copy only if ANOTHER author published it FIRST
+                m = re.search(r"/@([a-z0-9.\-]{3,16})/([a-z0-9\-]+)", u)
+                if not m or m.group(1) == x["a"]: continue
+                try: other = rpc("bridge.get_post", {"author": m.group(1), "permlink": m.group(2)})
+                except Exception: other = None
+                if other and other.get("created") and dt.datetime.fromisoformat(other["created"][:19]) < x["created"]:
+                    return r.get("url")
+                continue                                            # newer: a curation post quoting this one
             if re.sub(r"[^a-z0-9]", "", x["a"]) in re.sub(r"[^a-z0-9]", "", u): continue   # the author's own blog / cross-post (sapphirecrypto = sapphire-crypto)
             return r.get("url")
     return ""
@@ -285,6 +292,19 @@ else:
 json.dump({k: v for k, v in list(checked.items())[-3000:]}, open(CHECKED, "w"))
 print("final:", len(final), dict(why), "· web searches:", searches if BRAVE_KEY else "off (no BRAVE_API_KEY)", flush=True)
 
+# ------------------------------------------------------------------ 7b. weekly: new witness voters of hive3 (to thank them)
+new_witness_voters = []
+if WEEK:
+    try:
+        cur.execute("""SELECT account, approve FROM hafsql.operation_account_witness_vote_view
+                       WHERE witness = 'hive3' AND timestamp >= %s ORDER BY timestamp""", (NOW - dt.timedelta(days=7),))
+        last = {}
+        for acc, approve in cur.fetchall(): last[acc] = approve           # the last action of the week counts
+        new_witness_voters = sorted(a for a, ok in last.items() if ok)
+        print(len(new_witness_voters), "new witness voters this week", flush=True)
+    except Exception as e:
+        print("witness voters: query failed", e, flush=True)
+
 # ------------------------------------------------------------------ 8. post (authors linked, never @-tagged)
 def link_author(a): return f"[{a}](/@{a})"
 def esc(t): return re.sub(r"[\[\]|]", " ", t).replace("@", "").strip()[:90] or "(untitled)"
@@ -302,6 +322,10 @@ for i, x in enumerate(final, 1):
     L.append(f"**{i}. [{esc(x['t'])}](/{x['cat']}/@{x['a']}/{x['p']})**  \n"
              f"🌱 by {link_author(x['a'])} · in *{esc(x['ctitle'])}* · {x['nw']:,} words · "
              f"{'📷 ' if x['imgs'] else ''}{(f'{age / 24:.0f} days' if age >= 48 else f'{age:.0f}h')} old · pending ${x['pending']:.2f} · {x['votes']} vote{'s' if x['votes'] != 1 else ''}\n")
+if WEEK and new_witness_voters:
+    L.append("\n---\n\n### 🗳️ Thank you, new witness voters!\n")
+    L.append("This week " + ", ".join(link_author(a) for a in new_witness_voters) +
+             f" started voting [hive3 as witness](https://vote.hive.uno/@hive3). Thank you: your vote keeps a little node, and this little bee, flying. 💛🐝\n")
 L.append("\n---\n\n### 🐝 How the scout bee chooses\n")
 L.append((f"- Top-level posts **1 to 7 days old**, still before payout, with pending rewards **at or below the median** (≈ ${median:.2f}).\n" if WEEK else
           f"- Top-level posts **{MIN_AGE_H}–{MAX_AGE_H} hours old**, with pending rewards **at or below today's median** (≈ ${median:.2f}).\n") +
