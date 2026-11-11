@@ -38,6 +38,7 @@ BRAVE_KEY = os.environ.get("BRAVE_API_KEY", "")   # anti-plagiarism web search (
 PLAGIARISM_PHRASES   = 2                # exact-phrase searches per finalist
 MAX_SEARCHES         = 40               # per run: keeps us inside Brave's free monthly credit
 if SITE: PLAGIARISM_PHRASES, MAX_SEARCHES = 1, 1   # hourly site: 1 search an hour = ~720 a month, inside the free credit
+if WEEK: PLAGIARISM_PHRASES, MAX_SEARCHES = 1, 20  # weekly post: max 20 searches (~90 a month): site + weekly stay well inside the credit
 HIVE_FRONTENDS       = ("peakd.com", "ecency.com", "hive.blog", "inleo.io", "leofinance.io", "hiveblog", "waivio.com", "liketu.com",
                         "hivesuite.app", "3speak.tv", "actifit.io", "dbuzz", "stemsocial.com", "hivebuzz.me", "hiveblocks.com", "hive.ausbit.dev")
 OWN = {"scoutbee", "beecounter", "hive3", "hive3.guard", "pollenpatron"}   # never feature our own accounts
