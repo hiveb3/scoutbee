@@ -48,6 +48,7 @@ h1{font-size:28px;margin:8px 0 4px}.sub{color:var(--muted);margin:0 0 14px}
 .det .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 12px;margin:6px 0}
 .det .k{color:var(--muted)}.det .prev{background:var(--honey-soft);border-radius:8px;padding:8px 10px;margin:8px 0;white-space:pre-wrap;max-height:260px;overflow:auto}
 .det img.cov{max-width:100%;max-height:220px;border-radius:8px;display:block;margin:6px 0}
+.thumbs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.thumbs img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
 .det textarea{width:100%;min-height:80px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
 .det input[type=range]{width:160px;vertical-align:middle}.msg{font-size:13px;margin-left:6px}
 footer{color:var(--muted);font-size:14px;border-top:1px solid var(--line);margin-top:22px;padding-top:12px}
@@ -132,10 +133,18 @@ document.getElementById("list").addEventListener("click", async ev => {
   const [post, prof] = await Promise.all([rpc("bridge.get_post",{author:a,permlink:p}), rpc("bridge.get_profile",{account:a})]);
   if (!post) { box.textContent = "Could not load the post, try again."; return; }
   const txt = (post.body||"").replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/<[^>]+>/g," ").replace(/\[([^\]]*)\]\([^)]*\)/g,"$1").replace(/https?:\/\/\S+/g,"").replace(/[#*_>`]/g,"").replace(/\n{3,}/g,"\n\n").trim();
-  const img = (post.json_metadata && post.json_metadata.image || [])[0];
+  const imgs = [...new Set([...(post.json_metadata && post.json_metadata.image || []),
+    ...[...(post.body||"").matchAll(/https?:\/\/[^\s)"'<>\]]+?\.(?:jpe?g|png|gif|webp)(?:\?[^\s)"'<>]*)?/gi)].map(m => m[0]),
+    ...[...(post.body||"").matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g)].map(m => m[1])])].filter(u => /^https?:\/\//.test(u));
+  const img = imgs[0];
+  const SAY = ["Bzzz! 🐝 My scout dance led me straight to your flower, and what a sweet one it is! 🌼🍯",
+               "Bzzz! 🐝 Buzzing by the meadow, I found your post in bloom and had to stop for a sip of nectar! 🌼",
+               "Bzzz! 🐝 This little flower was waiting for its first bee: here I am, wings and all! 🌼🍯",
+               "Bzzz! 🐝 Pollen-approved! Your post is now on my waggle-dance map. 🌼💛"];
   const voted = user && (post.active_votes||[]).some(v => v.voter===user);
   const st = prof && prof.stats || {};
   box.innerHTML = `${img?`<img class="cov" src="https://images.hive.blog/640x0/${esc(img)}" alt="" loading="lazy">`:""}
+   ${imgs.length>1?`<div class="thumbs">${imgs.slice(1,25).map(u=>`<a href="${esc(u)}" target="_blank" rel="noopener"><img src="https://images.hive.blog/144x144/${esc(u)}" alt="" loading="lazy"></a>`).join("")}</div>`:""}
    <div class="prev">${esc(txt)}</div>
    <div class="grid">
     <div><span class="k">Author:</span> @${esc(a)} · rep ${prof?Math.round(prof.reputation):"?"}</div>
@@ -148,7 +157,7 @@ document.getElementById("list").addEventListener("click", async ev => {
     <div><span class="k">Quality score:</span> ${P.s||"?"} · personal voice ${P.fp||0}/100 words</div>
    </div>
    <div class="row">${voted?`<span class="badge ok">You already voted ✓</span>`:`<label>Vote weight <input type="range" min="1" max="100" value="50" class="w"> <b class="wv">50%</b></label> <button class="vb">👍 Vote</button>`}<span class="msg vm"></span></div>
-   <div style="margin-top:8px"><textarea class="ct" placeholder="Write a comment for ${esc(a)}…">${user?esc("Your post was found by the scout bee @"+user+" 🐝🌼\n\n"):""}</textarea>
+   <div style="margin-top:8px"><textarea class="ct" placeholder="Write a comment for ${esc(a)}…">${user?esc(SAY[Math.floor(Math.random()*SAY.length)]+"\n\n"):""}</textarea>
    <label style="font-size:13px"><input type="checkbox" class="sig" checked> add a small "found via Wildflower Watch" signature</label>
    <div class="row"><button class="cb">💬 Comment</button><span class="msg cm"></span></div></div>`;
   const w = box.querySelector(".w"); if (w) w.oninput = () => box.querySelector(".wv").textContent = w.value+"%";
