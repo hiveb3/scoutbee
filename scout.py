@@ -220,11 +220,15 @@ try:
     print(len(checked) - n, "posts already checked taken from the shared cache", flush=True)
 except Exception as e:
     print("shared cache not available", e, flush=True)
-def phrases(body):
+def sentences(body):
     t = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith(">"))       # quotes are allowed
     t = clean(t)
     sents = [re.sub(r"\s+", " ", x).strip() for x in re.split(r"(?<=[.!?])\s+|\n+", t)]
-    sents = [x for x in sents if 12 <= len(x.split()) <= 30 and '"' not in x]
+    return [x for x in sents if 12 <= len(x.split()) <= 30 and '"' not in x]
+# boilerplate: sentences found in more than one post of the last days (footers, app signatures, templates) are never searched
+common = C.Counter(s for x in posts for s in set(sentences(x["body"])))
+def phrases(body):
+    sents = [x for x in sentences(body) if common[x] <= 1]
     sents.sort(key=lambda x: -len(set(w.lower() for w in x.split() if len(w) > 6)))     # most distinctive first
     return [" ".join(x.split()[:20]) for x in sents[:PLAGIARISM_PHRASES]]
 def copied_from(x):
@@ -236,6 +240,8 @@ def copied_from(x):
         v = _search(x) if BRAVE_KEY else False
         if v is False: return None                    # not checked (no key, error or budget): try again next run
         checked[key] = v
+    if isinstance(v, str) and any(h in v for h in HIVE_FRONTENDS):  # old verdict on Hive: maybe a boilerplate sentence, search again
+        del checked[key]; return copied_from(x)
     if isinstance(v, str): v = [{"u": v.lstrip("?"), "age": ""}] if v else []   # old caches hold a verdict: re-judge its URL
     found = judge(x, v)
     if found.startswith("?"):                      # same author name elsewhere, but no proof it is really theirs
