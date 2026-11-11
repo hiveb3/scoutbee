@@ -206,6 +206,7 @@ document.getElementById("list").addEventListener("click", async ev => {
     ${rcPct!==null?`<div class="rcbar"><i style="width:${Math.max(1,rcPct).toFixed(0)}%;${rcPct<20?"background:#c62828":rcPct<50?"background:var(--warn)":""}"></i></div>`:""}
     <div class="row"><span style="font-size:13px">Give ${esc(a)} some RC:</span> <button class="rcd ghost" data-n="25">≈ 25 comments</button> <button class="rcd ghost" data-n="100">≈ 100 comments</button> <button class="rcd ghost" data-n="0">remove mine</button><span class="msg rm"></span></div>
     <div style="font-size:12px;color:var(--muted)">An RC delegation lends your spare Resource Credits (not your HIVE): you can change or remove it any time.</div></div>
+   <div class="row" style="font-size:13px">🔎 Deeper checks on botlord: ${[["🛡️ Trust","trust"],["🚩 Flags","flags"],["🩺 Health","health"]].map(([l,s])=>`<a class="btn" href="https://${s}.botlord.eu/?u=${esc(a)}" target="_blank" rel="noopener">${l}</a>`).join(" ")}</div>
    ${tips.length?`<div class="box"><h3>🩺 Account health tips</h3><div class="tips">${esc(tips.join("\n"))}</div>
     <label style="font-size:13px"><input type="checkbox" class="tip"> add these friendly tips to my comment</label></div>`:""}
    <div class="row">${voted?`<span class="badge ok">You already voted ✓</span>`:`<label>Vote weight <input type="range" min="1" max="100" value="50" class="w"> <b class="wv">50%</b></label> <button class="vb">👍 Vote</button>`}<span class="msg vm"></span></div>
