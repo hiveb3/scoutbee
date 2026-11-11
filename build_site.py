@@ -46,7 +46,7 @@ h1{font-size:28px;margin:8px 0 4px}.sub{color:var(--muted);margin:0 0 14px}
 .login button.ghost,.det button.ghost{background:transparent;color:var(--fg)}
 .det{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;font-size:14px}
 .det .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 12px;margin:6px 0}
-.det .k{color:var(--muted)}.det .prev{background:var(--honey-soft);border-radius:8px;padding:8px 10px;margin:8px 0;white-space:pre-wrap;max-height:180px;overflow:auto}
+.det .k{color:var(--muted)}.det .prev{background:var(--honey-soft);border-radius:8px;padding:8px 10px;margin:8px 0;white-space:pre-wrap;max-height:260px;overflow:auto}
 .det img.cov{max-width:100%;max-height:220px;border-radius:8px;display:block;margin:6px 0}
 .det textarea{width:100%;min-height:80px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
 .det input[type=range]{width:160px;vertical-align:middle}.msg{font-size:13px;margin-left:6px}
@@ -131,12 +131,12 @@ document.getElementById("list").addEventListener("click", async ev => {
   const P = D.posts.find(x => x.a===a && x.p===p) || {};
   const [post, prof] = await Promise.all([rpc("bridge.get_post",{author:a,permlink:p}), rpc("bridge.get_profile",{account:a})]);
   if (!post) { box.textContent = "Could not load the post, try again."; return; }
-  const txt = (post.body||"").replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/<[^>]+>/g," ").replace(/\[([^\]]*)\]\([^)]*\)/g,"$1").replace(/https?:\/\/\S+/g,"").replace(/[#*_>`]/g,"").replace(/\n{3,}/g,"\n\n").trim().slice(0,700);
+  const txt = (post.body||"").replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/<[^>]+>/g," ").replace(/\[([^\]]*)\]\([^)]*\)/g,"$1").replace(/https?:\/\/\S+/g,"").replace(/[#*_>`]/g,"").replace(/\n{3,}/g,"\n\n").trim();
   const img = (post.json_metadata && post.json_metadata.image || [])[0];
   const voted = user && (post.active_votes||[]).some(v => v.voter===user);
   const st = prof && prof.stats || {};
   box.innerHTML = `${img?`<img class="cov" src="https://images.hive.blog/640x0/${esc(img)}" alt="" loading="lazy">`:""}
-   <div class="prev">${esc(txt)}${(post.body||"").length>700?"…":""}</div>
+   <div class="prev">${esc(txt)}</div>
    <div class="grid">
     <div><span class="k">Author:</span> @${esc(a)} · rep ${prof?Math.round(prof.reputation):"?"}</div>
     <div><span class="k">Followers:</span> ${(st.followers||0).toLocaleString()} · posts ${(prof&&prof.post_count||0).toLocaleString()}</div>
