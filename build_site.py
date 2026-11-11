@@ -42,6 +42,7 @@ h1{font-size:28px;margin:8px 0 4px}.sub{color:var(--muted);margin:0 0 14px}
 .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line)}.badge.ok{color:var(--ok);border-color:var(--ok)}.badge.un{color:var(--warn)}
 .empty{color:var(--muted);text-align:center;padding:30px 0}
 .card.cur{opacity:.55;filter:grayscale(.8)}.card.cur:hover,.card.cur:focus-within{opacity:.9;filter:none}
+.card.lowrc{border-left:5px solid #c62828}.badge.low{color:#c62828;border-color:#c62828;font-weight:700}
 .curnote{font-size:13px;color:var(--muted);margin-top:6px;font-weight:600}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .login{font-size:14px}.login button,.det button{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--honey);background:var(--honey);color:#2a1d00;cursor:pointer}
@@ -74,6 +75,7 @@ footer a{color:var(--honey)}footer li{margin:2px 0}
 <li>The author is part of the hive: comments on other people's posts in the last week, reputation 30+.</li>
 <li>Skipped: public blacklists and community mutes, flood posting, copied text, NSFW, declined payouts, anti-abuse downvotes, posts already linked by other newsletters.</li>
 <li><b>Vote and comment from here</b>: log in with Hive Keychain (browser extension or the Keychain mobile app). Nothing is stored on a server: your keys never leave Keychain.</li>
+<li><b>⚡ low RC</b> (red edge): the author has under 20% Resource Credits and can hardly comment or reply. Open the post to lend them some RC in one click.</li>
 <li><b>Originality ✓</b>: a sentence of the post was searched on the web and found nowhere else, or only on the author's own pages. <b>⚠️ text also elsewhere, to check</b>: the same text is on a site under a similar name, but nothing proves it is the same author. <b>⏳ not checked yet</b>: the check runs a few posts per hour.</li>
 </ul>
 <p>Updated every hour · data: <a href="https://hafsql.mahdiyari.info">HAFSQL</a> by mahdiyari · idea by antisocialist · trust, health and RC checks inspired by the <a href="https://tools.botlord.eu/">botlord toolbox</a> · open source and AI-generated (MIT): <a href="https://github.com/hiveb3/scoutbee">github.com/hiveb3/scoutbee</a></p>
@@ -99,18 +101,32 @@ function render(){
   document.getElementById("list").innerHTML = rows.length ? rows.map(p => {
     const h = Math.max(0, Math.round((Date.now()-new Date(p.cr))/3600e3)), path = "/" + p.c + "/@" + p.a + "/" + p.p;
     const k = p.a+"/"+p.p, cu = CUR[k];
-    return `<div class="card${cu?" cur":""}" data-c="${esc(k)}"><h2><a href="https://peakd.com${esc(path)}" target="_blank" rel="noopener">${esc(p.t)}</a></h2>
+    const rc = RCP[p.a], low = rc !== undefined && rc < LOW_RC;
+    return `<div class="card${cu?" cur":""}${low?" lowrc":""}" data-c="${esc(k)}" data-a="${esc(p.a)}"><h2><a href="https://peakd.com${esc(path)}" target="_blank" rel="noopener">${esc(p.t)}</a></h2>
     <div class="meta">🌱 <a href="https://peakd.com/@${esc(p.a)}" target="_blank" rel="noopener">${esc(p.a)}</a> · ${esc(p.ct)} · ${p.w.toLocaleString()} words${p.i?" · 📷":""} · ${h}h old · pending $${p.pend.toFixed(2)} · ${p.v} vote${p.v===1?"":"s"}</div>
     <div class="row"><a class="btn" href="https://peakd.com${esc(path)}" target="_blank" rel="noopener">PeakD</a>
     <a class="btn" href="https://ecency.com${esc(path)}" target="_blank" rel="noopener">Ecency</a>
     <a class="btn" href="https://inleo.io/@${esc(p.a)}/${esc(p.p)}" target="_blank" rel="noopener">InLeo</a>
     <span class="badge ${p.o==="ok"?"ok":"un"}">${p.o==="ok"?"Originality ✓":p.o==="suspect"?"⚠️ text also elsewhere, to check":"⏳ not checked yet"}</span>
+    <span class="badge rcb${low?" low":""}" ${rc===undefined?"hidden":""}>${rc===undefined?"":rcLabel(rc)}</span>
     <button class="btn" style="background:none;cursor:pointer;font:inherit" data-k="${esc(p.a+"/"+p.p)}">Details · vote · comment ▾</button></div>
     <div class="curnote">${cu?curText(cu):""}</div>
     <div class="det" id="d-${esc((p.a+"-"+p.p).replace(/[^a-z0-9-]/g,"-"))}" hidden></div></div>`;
   }).join("") : '<p class="empty">No posts match these filters.</p>';
 }
 ["q","comm","age"].forEach(id => document.getElementById(id).addEventListener("input", render));
+// ---------- authors with low Resource Credits (they can hardly comment or reply) ----------
+const RCP = {}, LOW_RC = 20;
+const rcLabel = v => (v < LOW_RC ? "⚡ low RC " : "⚡ RC ") + v.toFixed(0) + "%";
+async function scanRC(){
+  const names = [...new Set(D.posts.map(p => p.a))];
+  const r = await rpc("rc_api.find_rc_accounts", {accounts: names}); if (!r) return;
+  for (const x of r.rc_accounts || []) { const max = +x.max_rc, m = x.rc_manabar;
+    RCP[x.account] = max ? Math.min(max, +m.current_mana + max * (Date.now()/1000 - m.last_update_time) / 432000) / max * 100 : 0; }
+  document.querySelectorAll(".card[data-a]").forEach(card => { const v = RCP[card.dataset.a]; if (v === undefined) return;
+    const s = card.querySelector(".rcb"); s.hidden = false; s.textContent = rcLabel(v);
+    s.classList.toggle("low", v < LOW_RC); card.classList.toggle("lowrc", v < LOW_RC); });
+}
 // ---------- already curated? (a comment with the Wildflower Watch signature) ----------
 const CUR = {};
 const curText = c => "🐝 Curated by @" + c.who + " · " + new Date(c.when + "Z").toLocaleString(undefined, {dateStyle:"medium", timeStyle:"short"});
@@ -233,7 +249,7 @@ document.getElementById("list").addEventListener("click", async ev => {
   };
 });
 drawLogin();
-tick(); render(); setInterval(tick, 30000); scanCurated();
+tick(); render(); setInterval(tick, 30000); scanRC(); scanCurated();
 </script></body></html>
 """
 open(os.path.join(SITE, "index.html"), "w", encoding="utf-8").write(page.replace("__BADGE__", json.dumps(BADGE)).replace("__DATA__", json.dumps(dict(
