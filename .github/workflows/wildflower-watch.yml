@@ -3,7 +3,7 @@
 name: Wildflower Watch
 on:
   schedule:
-    - cron: "23 * * * *"        # every hour at :23 UTC
+    - cron: "23 */4 * * *"        # every hour at :23 UTC
   workflow_dispatch:            # "Run workflow" button for a manual update
 permissions:
   contents: read
