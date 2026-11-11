@@ -236,7 +236,8 @@ def copied_from(x):
         v = _search(x) if BRAVE_KEY else False
         if v is False: return None                    # not checked (no key, error or budget): try again next run
         checked[key] = v
-    found = v if isinstance(v, str) else judge(x, v)  # old caches hold a verdict, new ones the raw Brave results
+    if isinstance(v, str): v = [{"u": v.lstrip("?"), "age": ""}] if v else []   # old caches hold a verdict: re-judge its URL
+    found = judge(x, v)
     if found.startswith("?"):                      # same author name elsewhere, but no proof it is really theirs
         x["orig"] = "suspect"; x["elsewhere"] = found[1:]; return None
     x["orig"] = "ok"
@@ -267,6 +268,7 @@ def judge(x, res):
             if not m or m.group(1) == x["a"]: continue
             try: other = rpc("bridge.get_post", {"author": m.group(1), "permlink": m.group(2)})
             except Exception: other = None
+            if other and f"@{x['a']}" in (other.get("body") or "").lower(): continue   # it credits the author: a quote / curation post
             if other and other.get("created") and dt.datetime.fromisoformat(other["created"][:19]) < x["created"]:
                 return r["u"]
             continue                                            # newer: a curation post quoting this one
