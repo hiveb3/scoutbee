@@ -243,8 +243,8 @@ def _search(x):
             print("brave error", e, flush=True); continue
         for r in res:
             u = r.get("url", "").lower()
-            if any(h in u for h in HIVE_FRONTENDS) and f"@{x['a']}/" in u: continue      # the post itself, on any front-end
-            if x["a"].replace(".", "") in u.replace(".", ""): continue                     # the author's own blog / site
+            if any(h in u for h in HIVE_FRONTENDS): continue          # Hive itself: the post on any front-end, or curation posts quoting it
+            if re.sub(r"[^a-z0-9]", "", x["a"]) in re.sub(r"[^a-z0-9]", "", u): continue   # the author's own blog / cross-post (sapphirecrypto = sapphire-crypto)
             return r.get("url")
     return ""
 
