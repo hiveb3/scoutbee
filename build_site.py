@@ -121,11 +121,7 @@ const rcLabel = v => (v < LOW_RC ? "⚡ low RC " : "⚡ RC ") + v.toFixed(0) + "
 async function scanRC(){
   const names = [...new Set(D.posts.map(p => p.a))];
   const r = await rpc("rc_api.find_rc_accounts", {accounts: names}); if (!r) return;
-  for (const x of r.rc_accounts || []) { const max = +x.max_rc, m = x.rc_manabar;
-    RCP[x.account] = max ? Math.min(max, +m.current_mana + max * (Date.now()/1000 - m.last_update_time) / 432000) / max * 100 : 0; }
-  document.querySelectorAll(".card[data-a]").forEach(card => { const v = RCP[card.dataset.a]; if (v === undefined) return;
-    const s = card.querySelector(".rcb"); s.hidden = false; s.textContent = rcLabel(v);
-    s.classList.toggle("low", v < LOW_RC); card.classList.toggle("lowrc", v < LOW_RC); });
+  for (const x of r.rc_accounts || []) setRC(x.account, rcCalc(x).pct);
 }
 // ---------- already curated? (a comment with the Wildflower Watch signature) ----------
 const CUR = {};
@@ -145,6 +141,18 @@ async function scanCurated(){
 const BADGE = __BADGE__;
 const API = ["https://api.hive.blog", "https://api.deathwing.me", "https://api.openhive.network"];
 async function rpc(method, params){ for (const u of API){ try{ const r = await fetch(u,{method:"POST",body:JSON.stringify({jsonrpc:"2.0",method,params,id:1})}).then(r=>r.json()); if (r.result!==undefined) return r.result; }catch(e){} } return null; }
+// account history filtered by operation type: the 64-bit filter is sent as an exact integer (JSON numbers would round it)
+async function history(acc, low){ for (const u of API){ try{ const r = await fetch(u,{method:"POST",body:`{"jsonrpc":"2.0","method":"condenser_api.get_account_history","params":["${acc}",-1,1000,${low}],"id":1}`}).then(r=>r.json()); if (r.result!==undefined) return r.result; }catch(e){} } return null; }
+const RC_COMMENT = 1.15e9;   // approx. RC cost of one comment
+function rcCalc(x){ if (!x) return null; const max = +x.max_rc, m = x.rc_manabar;
+  const cur = max ? Math.min(max, +m.current_mana + max * (Date.now()/1000 - m.last_update_time) / 432000) : 0;
+  return {max, cur, pct: max ? cur / max * 100 : 0, recv: +(x.received_delegated_rc || 0)}; }
+function rcInner(c){ if (!c) return "<h3>⚡ RC meter: ?</h3>";
+  return `<h3>⚡ RC meter: ${c.pct.toFixed(0)}% · ≈ ${Math.floor(c.cur/RC_COMMENT).toLocaleString()} comments left</h3>
+    <div class="rcbar"><i style="width:${Math.max(1,c.pct).toFixed(0)}%;${c.pct<20?"background:#c62828":c.pct<50?"background:var(--warn)":""}"></i></div>
+    ${c.recv?`<div style="font-size:12px;color:var(--muted)">Includes ≈ ${Math.floor(c.recv/RC_COMMENT).toLocaleString()} comments of RC lent by other bees 💛</div>`:""}`; }
+function setRC(a, pct){ RCP[a] = pct; document.querySelectorAll(`.card[data-a="${CSS.escape(a)}"]`).forEach(card => {
+  const s = card.querySelector(".rcb"); s.hidden = false; s.textContent = rcLabel(pct); s.classList.toggle("low", pct < LOW_RC); card.classList.toggle("lowrc", pct < LOW_RC); }); }
 let user = null; try { user = localStorage.getItem("ww_user"); } catch(e) {}
 const kc = () => window.hive_keychain;
 function drawLogin(){
@@ -169,6 +177,7 @@ document.getElementById("list").addEventListener("click", async ev => {
   const P = D.posts.find(x => x.a===a && x.p===p) || {};
   const [post, prof, accs, rcs] = await Promise.all([rpc("bridge.get_post",{author:a,permlink:p}), rpc("bridge.get_profile",{account:a}),
     rpc("condenser_api.get_accounts",[[a]]), rpc("rc_api.find_rc_accounts",{accounts:[a]})]);
+  const [dgp, hist] = await Promise.all([rpc("condenser_api.get_dynamic_global_properties",[]), history(a, "108086391056891904")]);
   const acc = (accs||[])[0] || {}, rca = (rcs && rcs.rc_accounts || [])[0];
   // ---- trust check (public data) ----
   const rep = prof ? prof.reputation : 25, yrs = prof && prof.created ? (Date.now() - new Date(prof.created+"Z")) / 31557600000 : 0;
@@ -179,9 +188,20 @@ document.getElementById("list").addEventListener("click", async ev => {
              [!shared.length, shared.length ? `Keys shared with @${shared.join(", @")}` : "Keys self-contained: no shared owner/active access"]];
   const flags = T.filter(t => !t[0]).length;
   // ---- RC meter ----
-  const RC_COMMENT = 1.15e9;   // approx. RC cost of one comment
-  let rcPct = null, rcCur = 0, rcMax = 0;
-  if (rca) { rcMax = +rca.max_rc; const m = rca.rc_manabar; rcCur = Math.min(rcMax, +m.current_mana + rcMax * (Date.now()/1000 - m.last_update_time) / 432000); rcPct = rcMax ? rcCur / rcMax * 100 : 0; }
+  const rcc = rcCalc(rca), rcPct = rcc ? rcc.pct : null;
+  // ---- power downs ----
+  const hpPerVest = dgp ? parseFloat(dgp.total_vesting_fund_hive) / parseFloat(dgp.total_vesting_shares) : 0;
+  const PD = [];
+  const rate = parseFloat(acc.vesting_withdraw_rate || 0);
+  if (rate > 0 && hpPerVest) {
+    const leftW = Math.max(0, Math.round((acc.to_withdraw - acc.withdrawn) / 1e6 / rate));
+    PD.push([false, `Power down in progress: ≈ ${(rate*hpPerVest).toFixed(0)} HP a week, ${leftW} week${leftW===1?"":"s"} left, next on ${new Date(acc.next_vesting_withdrawal+"Z").toLocaleDateString()}`]);
+  } else if (acc.name) PD.push([true, "No power down in progress"]);
+  if (hist) {
+    const yr = Date.now() - 365*864e5, fills = hist.map(h => h[1]).filter(o => o.op[0]==="fill_vesting_withdraw" && o.op[1].from_account===a && new Date(o.timestamp+"Z") > yr);
+    const tot = fills.reduce((s, o) => s + parseFloat(o.op[1].deposited), 0);
+    PD.push([fills.length===0, fills.length ? `Last 12 months: ${fills.length} weekly payment${fills.length===1?"":"s"}, ≈ ${tot.toFixed(0)} HIVE powered down` : "Last 12 months: no power down"]);
+  }
   // ---- account health tips for the author (optional, added to the comment) ----
   const tips = [];
   const unclaimed = [acc.reward_hbd_balance, acc.reward_hive_balance, acc.reward_vesting_hive].filter(x => x && parseFloat(x) > 0);
@@ -218,8 +238,8 @@ document.getElementById("list").addEventListener("click", async ev => {
     <div><span class="k">Quality score:</span> ${P.s||"?"} · personal voice ${P.fp||0}/100 words</div>
    </div>
    <div class="box"><h3>🛡️ Trust check: ${flags ? `🟡 ${flags} thing${flags>1?"s":""} to review` : "🟢 looks trustworthy"}</h3><ul>${T.map(t=>`<li>${t[0]?"🟢":"🟡"} ${esc(t[1])}</li>`).join("")}</ul></div>
-   <div class="box"><h3>⚡ RC meter: ${rcPct===null?"?":rcPct.toFixed(0)+"%"} ${rcPct!==null?`· ≈ ${Math.floor(rcCur/RC_COMMENT).toLocaleString()} comments left`:""}</h3>
-    ${rcPct!==null?`<div class="rcbar"><i style="width:${Math.max(1,rcPct).toFixed(0)}%;${rcPct<20?"background:#c62828":rcPct<50?"background:var(--warn)":""}"></i></div>`:""}
+   ${PD.length?`<div class="box"><h3>📉 Power downs</h3><ul>${PD.map(t=>`<li>${t[0]?"🟢":"🟡"} ${esc(t[1])}</li>`).join("")}</ul></div>`:""}
+   <div class="box"><div class="rcin">${rcInner(rcc)}</div>
     <div class="row"><span style="font-size:13px">Give ${esc(a)} some RC:</span> <button class="rcd ghost" data-n="25">≈ 25 comments</button> <button class="rcd ghost" data-n="100">≈ 100 comments</button> <button class="rcd ghost" data-n="0">remove mine</button><span class="msg rm"></span></div>
     <div style="font-size:12px;color:var(--muted)">An RC delegation lends your spare Resource Credits (not your HIVE): you can change or remove it any time.</div></div>
    <div class="row" style="font-size:13px">🔎 Deeper checks on botlord: ${[["🛡️ Trust","trust"],["🚩 Flags","flags"],["🩺 Health","health"]].map(([l,s])=>`<a class="btn" href="https://${s}.botlord.eu/?u=${esc(a)}" target="_blank" rel="noopener">${l}</a>`).join(" ")}</div>
@@ -233,7 +253,16 @@ document.getElementById("list").addEventListener("click", async ev => {
     const n = Math.round(+btn.dataset.n * RC_COMMENT);
     kc().requestCustomJson(user, "rc", "Posting", JSON.stringify(["delegate_rc", {from:user, delegatees:[a], max_rc:n}]),
       n ? `Delegate ≈${btn.dataset.n} comments of RC to @${a}` : `Remove your RC delegation to @${a}`,
-      r => { box.querySelector(".rm").textContent = r.success ? (n ? "RC delegated ✓ thank you!" : "Delegation removed ✓") : "Cancelled or failed."; }); });
+      r => { box.querySelector(".rm").textContent = r.success ? (n ? "RC delegated ✓ thank you!" : "Delegation removed ✓") : "Cancelled or failed.";
+        if (!r.success) return;
+        const ct = box.querySelector(".ct"), line = /\n?⚡ I also lent you[^\n]*\n?/;
+        ct.value = ct.value.replace(line, "\n");
+        if (n) ct.value = ct.value.replace(/\s*$/, "") + `\n⚡ I also lent you ≈ ${btn.dataset.n} comments of Resource Credits, so you can keep buzzing! 🐝\n\n`;
+        setTimeout(async () => { const x = await rpc("rc_api.find_rc_accounts",{accounts:[a]}); const c = rcCalc(x && x.rc_accounts && x.rc_accounts[0]);
+          if (!c) return; box.querySelector(".rcin").innerHTML = rcInner(c); setRC(a, c.pct);
+          const i = tips.findIndex(t => t.startsWith("⚡")); if (i < 0) return;
+          if (c.pct >= 20) tips.splice(i, 1); else tips[i] = tips[i].replace(/\(\d+%\)/, `(${c.pct.toFixed(0)}%)`);
+          const tb = box.querySelector(".tips"); if (tb) { tb.textContent = tips.join("\n"); if (!tips.length) tb.parentElement.remove(); } }, 4000); }); });
   const w = box.querySelector(".w"); if (w) w.oninput = () => box.querySelector(".wv").textContent = w.value+"%";
   const need = () => { if (!user) { alertBox("Log in first (button at the top)."); return false; } if (!kc()) { alertBox("Hive Keychain not found."); return false; } return true; };
   const vb = box.querySelector(".vb"); if (vb) vb.onclick = () => { if (!need()) return;
