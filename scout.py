@@ -224,10 +224,12 @@ def copied_from(x):
     global searches
     key = f"{x['a']}/{x['p']}"
     x["orig"] = "unchecked"
-    if key in checked: x["orig"] = "ok"; return checked[key] or None
-    if not BRAVE_KEY: return None
-    found = _search(x)
-    if found is not False: checked[key] = found or ""; x["orig"] = "ok"
+    found = checked[key] if key in checked else (_search(x) if BRAVE_KEY else False)
+    if found is False: return None
+    checked[key] = found
+    if found.startswith("?"):                      # same author name elsewhere, but no proof it is really theirs
+        x["orig"] = "suspect"; x["elsewhere"] = found[1:]; return None
+    x["orig"] = "ok"
     return found or None
 def _search(x):
     global searches
@@ -251,7 +253,13 @@ def _search(x):
                 if other and other.get("created") and dt.datetime.fromisoformat(other["created"][:19]) < x["created"]:
                     return r.get("url")
                 continue                                            # newer: a curation post quoting this one
-            if re.sub(r"[^a-z0-9]", "", x["a"]) in re.sub(r"[^a-z0-9]", "", u): continue   # the author's own blog / cross-post (sapphirecrypto = sapphire-crypto)
+            # own cross-post only with a proof: (1) the Hive post links that site, or (3) the Hive post is older than the page
+            dom = urllib.parse.urlparse(u).netloc.removeprefix("www.")
+            if dom and dom in x["body"].lower(): continue
+            try: page = dt.datetime.fromisoformat(str(r.get("page_age", ""))[:19])
+            except ValueError: page = None
+            if page and x["created"] < page: continue
+            if re.sub(r"[^a-z0-9]", "", x["a"]) in re.sub(r"[^a-z0-9]", "", u): return "?" + r.get("url", "")   # same name, no proof: to be checked
             return r.get("url")
     return ""
 
@@ -278,6 +286,7 @@ for x in cand:
         why["anti-abuse downvote"] += 1; continue
     if x["cat"].startswith("hive-") and x["a"] in community_muted(x["cat"]): why["muted in community"] += 1; continue
     src = copied_from(x)
+    if WEEK and x["orig"] == "suspect": why["text also elsewhere (to check)"] += 1; print("  check?", x["a"], x["p"], "->", x["elsewhere"], flush=True); continue
     if src: why["possible copy (web)"] += 1; print("  copy?", x["a"], x["p"], "->", src, flush=True); continue
     x["pending"] = float(str(p.get("pending_payout_value", "0")).split()[0])
     x["ctitle"] = p.get("community_title") or x["cat"]
@@ -349,7 +358,7 @@ meta = dict(title=title, permlink=(f"wildflower-watch-week-{NOW.strftime('%Y-%m-
             tags=["hive-170283", "curation", "hive", "newbies", "wildflowerwatch", "discovery", "aibees"],
             images=["cover.png"] if os.path.exists(os.path.join(OUT, "cover.png")) else [], community="hive-170283")
 json.dump(meta, open(os.path.join(OUT, "meta.json"), "w"), ensure_ascii=False, indent=1)
-json.dump([{k: v for k, v in x.items() if k not in ("body", "jm", "tags", "hash")} | {"created": x["created"].isoformat(), "tags": sorted(x["tags"])[:8]}
+json.dump([{k: v for k, v in x.items() if k not in ("body", "jm", "tags", "hash", "elsewhere")} | {"created": x["created"].isoformat(), "tags": sorted(x["tags"])[:8]}
            for x in final], open(os.path.join(OUT, "candidates.json"), "w"), ensure_ascii=False, indent=1)
 json.dump(dict(why=why, median=median, window=len(window), generated=NOW.isoformat() + "Z", searches=searches), open(os.path.join(OUT, "stats.json"), "w"), indent=1)
 print("OK", OUT, title)

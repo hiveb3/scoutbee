@@ -68,7 +68,7 @@ footer a{color:var(--honey)}footer li{margin:2px 0}
 <li>The author is part of the hive: comments on other people's posts in the last week, reputation 30+.</li>
 <li>Skipped: public blacklists and community mutes, flood posting, copied text, NSFW, declined payouts, anti-abuse downvotes, posts already linked by other newsletters.</li>
 <li><b>Vote and comment from here</b>: log in with Hive Keychain (browser extension or the Keychain mobile app). Nothing is stored on a server: your keys never leave Keychain.</li>
-<li><b>Originality ✓</b>: a sentence of the post was searched on the web and found nowhere else. <b>⏳ not checked yet</b>: the check runs a few posts per hour.</li>
+<li><b>Originality ✓</b>: a sentence of the post was searched on the web and found nowhere else, or only on the author's own pages. <b>⚠️ text also elsewhere, to check</b>: the same text is on a site under a similar name, but nothing proves it is the same author. <b>⏳ not checked yet</b>: the check runs a few posts per hour.</li>
 </ul>
 <p>Updated every hour · data: <a href="https://hafsql.mahdiyari.info">HAFSQL</a> by mahdiyari · idea by antisocialist · open source and AI-generated (MIT): <a href="https://github.com/hiveb3/scoutbee">github.com/hiveb3/scoutbee</a></p>
 <p>Made with 💛 by <a href="https://peakd.com/@hive3">@hive3</a> · 🐝 <a href="https://peakd.com/c/hive-170283">AIBees</a> · 🎮 <a href="https://hiveb3.github.io/beetris/">BeeTris</a> · 🗳️ <a href="https://vote.hive.uno/@hive3">Vote @hive3 as witness</a></p>
@@ -97,7 +97,7 @@ function render(){
     <div class="row"><a class="btn" href="https://peakd.com${esc(path)}" target="_blank" rel="noopener">PeakD</a>
     <a class="btn" href="https://ecency.com${esc(path)}" target="_blank" rel="noopener">Ecency</a>
     <a class="btn" href="https://inleo.io/@${esc(p.a)}/${esc(p.p)}" target="_blank" rel="noopener">InLeo</a>
-    <span class="badge ${p.o==="ok"?"ok":"un"}">${p.o==="ok"?"Originality ✓":"⏳ not checked yet"}</span>
+    <span class="badge ${p.o==="ok"?"ok":"un"}">${p.o==="ok"?"Originality ✓":p.o==="suspect"?"⚠️ text also elsewhere, to check":"⏳ not checked yet"}</span>
     <button class="btn" style="background:none;cursor:pointer;font:inherit" data-k="${esc(p.a+"/"+p.p)}">Details · vote · comment ▾</button></div>
     <div class="det" id="d-${esc((p.a+"-"+p.p).replace(/[^a-z0-9-]/g,"-"))}" hidden></div></div>`;
   }).join("") : '<p class="empty">No posts match these filters.</p>';
