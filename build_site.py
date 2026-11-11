@@ -41,6 +41,8 @@ h1{font-size:28px;margin:8px 0 4px}.sub{color:var(--muted);margin:0 0 14px}
 .btn:hover{background:var(--honey-soft)}
 .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line)}.badge.ok{color:var(--ok);border-color:var(--ok)}.badge.un{color:var(--warn)}
 .empty{color:var(--muted);text-align:center;padding:30px 0}
+.card.cur{opacity:.55;filter:grayscale(.8)}.card.cur:hover,.card.cur:focus-within{opacity:.9;filter:none}
+.curnote{font-size:13px;color:var(--muted);margin-top:6px;font-weight:600}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .login{font-size:14px}.login button,.det button{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--honey);background:var(--honey);color:#2a1d00;cursor:pointer}
 .login button.ghost,.det button.ghost{background:transparent;color:var(--fg)}
@@ -93,17 +95,33 @@ function render(){
   const rows = D.posts.filter(p => (!q || (p.t+" "+p.a).toLowerCase().includes(q)) && (!c || p.ct===c) && (Date.now()-new Date(p.cr))/3600e3 <= a);
   document.getElementById("list").innerHTML = rows.length ? rows.map(p => {
     const h = Math.max(0, Math.round((Date.now()-new Date(p.cr))/3600e3)), path = "/" + p.c + "/@" + p.a + "/" + p.p;
-    return `<div class="card"><h2><a href="https://peakd.com${esc(path)}" target="_blank" rel="noopener">${esc(p.t)}</a></h2>
+    const k = p.a+"/"+p.p, cu = CUR[k];
+    return `<div class="card${cu?" cur":""}" data-c="${esc(k)}"><h2><a href="https://peakd.com${esc(path)}" target="_blank" rel="noopener">${esc(p.t)}</a></h2>
     <div class="meta">🌱 <a href="https://peakd.com/@${esc(p.a)}" target="_blank" rel="noopener">${esc(p.a)}</a> · ${esc(p.ct)} · ${p.w.toLocaleString()} words${p.i?" · 📷":""} · ${h}h old · pending $${p.pend.toFixed(2)} · ${p.v} vote${p.v===1?"":"s"}</div>
     <div class="row"><a class="btn" href="https://peakd.com${esc(path)}" target="_blank" rel="noopener">PeakD</a>
     <a class="btn" href="https://ecency.com${esc(path)}" target="_blank" rel="noopener">Ecency</a>
     <a class="btn" href="https://inleo.io/@${esc(p.a)}/${esc(p.p)}" target="_blank" rel="noopener">InLeo</a>
     <span class="badge ${p.o==="ok"?"ok":"un"}">${p.o==="ok"?"Originality ✓":p.o==="suspect"?"⚠️ text also elsewhere, to check":"⏳ not checked yet"}</span>
     <button class="btn" style="background:none;cursor:pointer;font:inherit" data-k="${esc(p.a+"/"+p.p)}">Details · vote · comment ▾</button></div>
+    <div class="curnote">${cu?curText(cu):""}</div>
     <div class="det" id="d-${esc((p.a+"-"+p.p).replace(/[^a-z0-9-]/g,"-"))}" hidden></div></div>`;
   }).join("") : '<p class="empty">No posts match these filters.</p>';
 }
 ["q","comm","age"].forEach(id => document.getElementById(id).addEventListener("input", render));
+// ---------- already curated? (a comment with the Wildflower Watch signature) ----------
+const CUR = {};
+const curText = c => "🐝 Curated by @" + c.who + " · " + new Date(c.when + "Z").toLocaleString(undefined, {dateStyle:"medium", timeStyle:"short"});
+function markCur(k){ const card = document.querySelector(`.card[data-c="${CSS.escape(k)}"]`); if (!card || !CUR[k]) return;
+  card.classList.add("cur"); card.querySelector(".curnote").textContent = curText(CUR[k]); }
+async function scanCurated(){
+  const keys = D.posts.map(p => p.a+"/"+p.p);
+  for (let i = 0; i < keys.length; i += 5) await Promise.all(keys.slice(i, i+5).map(async k => {
+    const [a, p] = k.split("/"); const rs = await rpc("condenser_api.get_content_replies", [a, p]) || [];
+    const hit = rs.filter(r => (r.body||"").includes("hiveb3.github.io/scoutbee") || String(r.json_metadata||"").includes("wildflowerwatch"))
+                  .sort((x, y) => x.created < y.created ? -1 : 1)[0];
+    if (hit) { CUR[k] = {who: hit.author, when: hit.created}; markCur(k); }
+  }));
+}
 // ---------- login, details, vote, comment (Hive Keychain) ----------
 const BADGE = __BADGE__;
 const API = ["https://api.hive.blog", "https://api.deathwing.me", "https://api.openhive.network"];
@@ -158,7 +176,7 @@ document.getElementById("list").addEventListener("click", async ev => {
    </div>
    <div class="row">${voted?`<span class="badge ok">You already voted ✓</span>`:`<label>Vote weight <input type="range" min="1" max="100" value="50" class="w"> <b class="wv">50%</b></label> <button class="vb">👍 Vote</button>`}<span class="msg vm"></span></div>
    <div style="margin-top:8px"><textarea class="ct" placeholder="Write a comment for ${esc(a)}…">${user?esc(SAY[Math.floor(Math.random()*SAY.length)]+"\n\n"):""}</textarea>
-   <label style="font-size:13px"><input type="checkbox" class="sig" checked> add a small "found via Wildflower Watch" signature</label>
+   <label style="font-size:13px">${CUR[a+"/"+p]?`<input type="checkbox" class="sig" disabled> signature already posted by @${esc(CUR[a+"/"+p].who)}`:`<input type="checkbox" class="sig" checked> add a small "found via Wildflower Watch" signature`}</label>
    <div class="row"><button class="cb">💬 Comment</button><span class="msg cm"></span></div></div>`;
   const w = box.querySelector(".w"); if (w) w.oninput = () => box.querySelector(".wv").textContent = w.value+"%";
   const need = () => { if (!user) { alertBox("Log in first (button at the top)."); return false; } if (!kc()) { alertBox("Hive Keychain not found."); return false; } return true; };
@@ -170,11 +188,11 @@ document.getElementById("list").addEventListener("click", async ev => {
     const perm = ("re-" + a + "-" + Date.now().toString(36)).toLowerCase().replace(/[^a-z0-9-]/g,"");
     const op = ["comment", {parent_author:a, parent_permlink:p, author:user, permlink:perm, title:"", body,
                 json_metadata:JSON.stringify({app:"wildflowerwatch/1.0", tags:["wildflowerwatch"]})}];
-    kc().requestBroadcast(user, [op], "Posting", r => { box.querySelector(".cm").textContent = r.success ? "Comment published ✓" : "Comment cancelled or failed."; if (r.success) box.querySelector(".ct").value=""; });
+    kc().requestBroadcast(user, [op], "Posting", r => { box.querySelector(".cm").textContent = r.success ? "Comment published ✓" : "Comment cancelled or failed."; if (r.success) { box.querySelector(".ct").value=""; if (!CUR[a+"/"+p] && box.querySelector(".sig").checked) { CUR[a+"/"+p] = {who:user, when:new Date().toISOString().slice(0,19)}; markCur(a+"/"+p); } } });
   };
 });
 drawLogin();
-tick(); render(); setInterval(tick, 30000);
+tick(); render(); setInterval(tick, 30000); scanCurated();
 </script></body></html>
 """
 open(os.path.join(SITE, "index.html"), "w", encoding="utf-8").write(page.replace("__BADGE__", json.dumps(BADGE)).replace("__DATA__", json.dumps(dict(
