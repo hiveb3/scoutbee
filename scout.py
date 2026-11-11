@@ -33,7 +33,7 @@ SITE = os.environ.get("SCOUTBEE_SITE") == "1"   # website mode: hourly list, no 
 if SITE: MAX_POSTS, MAX_PER_COMMUNITY = 30, 4
 WEEK = os.environ.get("SCOUTBEE_WEEK") == "1"   # weekly Hive post: "best of the week", posts 1-6.75 days old, still pending
 if WEEK: MIN_AGE_H, MAX_AGE_H, MAX_POSTS, REPEAT_AUTHOR_DAYS = 24, 162, 15, 28
-CHECKED = "state/checked.json"            # anti-plagiarism results already known (post -> "" or copy URL)
+CHECKED = "state/checked.json"            # anti-plagiarism: raw Brave results per post, re-judged with the current rules (no new searches)
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY", "")   # anti-plagiarism web search (optional: skipped if missing)
 PLAGIARISM_PHRASES   = 2                # exact-phrase searches per finalist
 MAX_SEARCHES         = 40               # per run: keeps us inside Brave's free monthly credit
@@ -212,6 +212,14 @@ print("after HAFSQL filters:", len(cand), dict(why), flush=True)
 # ------------------------------------------------------------------ 6c. anti-plagiarism: exact phrases searched on the web (Brave Search)
 searches = 0
 checked = json.load(open(CHECKED)) if os.path.exists(CHECKED) else {}
+SHARED = os.environ.get("SCOUTBEE_SHARED_CACHE", "https://hiveb3.github.io/scoutbee/checked.json")   # cache published by the site
+try:
+    remote = json.load(urllib.request.urlopen(urllib.request.Request(SHARED, headers={"User-Agent": "scoutbee/1.1"}), timeout=20))
+    n = len(checked)
+    for k, v in remote.items(): checked.setdefault(k, v)
+    print(len(checked) - n, "posts already checked taken from the shared cache", flush=True)
+except Exception as e:
+    print("shared cache not available", e, flush=True)
 def phrases(body):
     t = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith(">"))       # quotes are allowed
     t = clean(t)
@@ -221,18 +229,22 @@ def phrases(body):
     return [" ".join(x.split()[:20]) for x in sents[:PLAGIARISM_PHRASES]]
 def copied_from(x):
     """returns a URL where the same text exists and is not the author's own post, or None"""
-    global searches
     key = f"{x['a']}/{x['p']}"
     x["orig"] = "unchecked"
-    found = checked[key] if key in checked else (_search(x) if BRAVE_KEY else False)
-    if found is False: return None
-    checked[key] = found
+    if key in checked: v = checked[key]
+    else:
+        v = _search(x) if BRAVE_KEY else False
+        if v is False: return None                    # not checked (no key, error or budget): try again next run
+        checked[key] = v
+    found = v if isinstance(v, str) else judge(x, v)  # old caches hold a verdict, new ones the raw Brave results
     if found.startswith("?"):                      # same author name elsewhere, but no proof it is really theirs
         x["orig"] = "suspect"; x["elsewhere"] = found[1:]; return None
     x["orig"] = "ok"
     return found or None
 def _search(x):
+    """raw Brave results [{u, age}] for the post's phrases, or False if the search could not be completed"""
     global searches
+    out = []
     for ph in phrases(x["body"]):
         if searches >= MAX_SEARCHES: return False      # not checked: try again next run
         searches += 1; time.sleep(1.1)                                                 # free plan: 1 request per second
@@ -242,25 +254,30 @@ def _search(x):
                   headers={"X-Subscription-Token": BRAVE_KEY, "Accept": "application/json", "User-Agent": "scoutbee/1.1"})
             res = json.load(urllib.request.urlopen(req, timeout=20)).get("web", {}).get("results", [])
         except Exception as e:
-            print("brave error", e, flush=True); continue
-        for r in res:
-            u = r.get("url", "").lower()
-            if any(h in u for h in HIVE_FRONTENDS):                   # on Hive: a copy only if ANOTHER author published it FIRST
-                m = re.search(r"/@([a-z0-9.\-]{3,16})/([a-z0-9\-]+)", u)
-                if not m or m.group(1) == x["a"]: continue
-                try: other = rpc("bridge.get_post", {"author": m.group(1), "permlink": m.group(2)})
-                except Exception: other = None
-                if other and other.get("created") and dt.datetime.fromisoformat(other["created"][:19]) < x["created"]:
-                    return r.get("url")
-                continue                                            # newer: a curation post quoting this one
-            # own cross-post only with a proof: (1) the Hive post links that site, or (3) the Hive post is older than the page
-            dom = urllib.parse.urlparse(u).netloc.removeprefix("www.")
-            if dom and dom in x["body"].lower(): continue
-            try: page = dt.datetime.fromisoformat(str(r.get("page_age", ""))[:19])
-            except ValueError: page = None
-            if page and x["created"] < page: continue
-            if re.sub(r"[^a-z0-9]", "", x["a"]) in re.sub(r"[^a-z0-9]", "", u): return "?" + r.get("url", "")   # same name, no proof: to be checked
-            return r.get("url")
+            print("brave error", e, flush=True); return False
+        out += [{"u": r.get("url", ""), "age": r.get("page_age", "")} for r in res]
+        if judge(x, out): break                       # already found something: no need for the next phrase
+    return out
+def judge(x, res):
+    """applies the current rules to cached results: copy URL, "?" + URL (to check) or "" (original)"""
+    for r in res:
+        u = r["u"].lower()
+        if any(h in u for h in HIVE_FRONTENDS):                   # on Hive: a copy only if ANOTHER author published it FIRST
+            m = re.search(r"/@([a-z0-9.\-]{3,16})/([a-z0-9\-]+)", u)
+            if not m or m.group(1) == x["a"]: continue
+            try: other = rpc("bridge.get_post", {"author": m.group(1), "permlink": m.group(2)})
+            except Exception: other = None
+            if other and other.get("created") and dt.datetime.fromisoformat(other["created"][:19]) < x["created"]:
+                return r["u"]
+            continue                                            # newer: a curation post quoting this one
+        # own cross-post only with a proof: (1) the Hive post links that site, or (3) the Hive post is older than the page
+        dom = urllib.parse.urlparse(u).netloc.removeprefix("www.")
+        if dom and dom in x["body"].lower(): continue
+        try: page = dt.datetime.fromisoformat(str(r.get("age") or "")[:19])
+        except ValueError: page = None
+        if page and x["created"] < page: continue
+        if re.sub(r"[^a-z0-9]", "", x["a"]) in re.sub(r"[^a-z0-9]", "", u): return "?" + r["u"]   # same name, no proof: to be checked
+        return r["u"]
     return ""
 
 # ------------------------------------------------------------------ 7. final check on the chain (only the finalists)
