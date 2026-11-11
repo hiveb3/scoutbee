@@ -170,4 +170,6 @@ tick(); render(); setInterval(tick, 30000);
 """
 open(os.path.join(SITE, "index.html"), "w", encoding="utf-8").write(page.replace("__BADGE__", json.dumps(BADGE)).replace("__DATA__", json.dumps(dict(
     generated=gen, posts=data, window=stats.get("window")), ensure_ascii=False).replace("</", "<\\/")))
+if os.path.exists("state/checked.json"):       # shared anti-plagiarism cache: the weekly run reuses it instead of searching again
+    import shutil; shutil.copy("state/checked.json", os.path.join(SITE, "checked.json"))
 print("site:", os.path.join(SITE, "index.html"), len(data), "posts, generated", gen)
