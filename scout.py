@@ -31,6 +31,8 @@ NODES = ["https://api.hive.blog", "https://api.deathwing.me", "https://api.openh
 STATE = "state/featured.json"
 SITE = os.environ.get("SCOUTBEE_SITE") == "1"   # website mode: hourly list, no "featured this week" memory
 if SITE: MAX_POSTS, MAX_PER_COMMUNITY = 30, 4
+WEEK = os.environ.get("SCOUTBEE_WEEK") == "1"   # weekly Hive post: "best of the week", posts 1-6.75 days old, still pending
+if WEEK: MIN_AGE_H, MAX_AGE_H, MAX_POSTS, REPEAT_AUTHOR_DAYS = 24, 162, 15, 28
 CHECKED = "state/checked.json"            # anti-plagiarism results already known (post -> "" or copy URL)
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY", "")   # anti-plagiarism web search (optional: skipped if missing)
 PLAGIARISM_PHRASES   = 2                # exact-phrase searches per finalist
@@ -288,21 +290,25 @@ def esc(t): return re.sub(r"[\[\]|]", " ", t).replace("@", "").strip()[:90] or "
 day = NOW.strftime("%B %-d, %Y")
 L = []
 L.append("<center>\n\nIMG:cover.png\n\n</center>\n" if os.path.exists(os.path.join(OUT, "cover.png")) else "")
-L.append("Bzzz! 🐝💃 Hello, hive! Your little scout bee just came back from the meadow, and here is today's dance: "
-         f"**{len(final)} fresh posts**, published in the last {MAX_AGE_H} hours, that are well made and still waiting for their first visit. 🌼\n")
+L.append(("Bzzz! 🐝💃 Hello, hive! Here is the **best of the week** from the meadow: "
+          f"**{len(final)} well-made posts** of the last 7 days that are still **under-rewarded**, and still have time to be voted before payout. 🌼\n"
+          "Every hour the full, fresh list lives at **[hiveb3.github.io/scoutbee](https://hiveb3.github.io/scoutbee/)**. 🐝\n") if WEEK else
+         ("Bzzz! 🐝💃 Hello, hive! Your little scout bee just came back from the meadow, and here is today's dance: "
+          f"**{len(final)} fresh posts**, published in the last {MAX_AGE_H} hours, that are well made and still waiting for their first visit. 🌼\n"))
 L.append("They are sorted from the **least rewarded** up. A vote, a comment, or even just a read can make someone's day. 🍯\n\n---\n")
 for i, x in enumerate(final, 1):
     age = (NOW - x["created"]).total_seconds() / 3600
     L.append(f"**{i}. [{esc(x['t'])}](/{x['cat']}/@{x['a']}/{x['p']})**  \n"
              f"🌱 by {link_author(x['a'])} · in *{esc(x['ctitle'])}* · {x['nw']:,} words · "
-             f"{'📷 ' if x['imgs'] else ''}{age:.0f}h old · pending ${x['pending']:.2f} · {x['votes']} vote{'s' if x['votes'] != 1 else ''}\n")
+             f"{'📷 ' if x['imgs'] else ''}{(f'{age / 24:.0f} days' if age >= 48 else f'{age:.0f}h')} old · pending ${x['pending']:.2f} · {x['votes']} vote{'s' if x['votes'] != 1 else ''}\n")
 L.append("\n---\n\n### 🐝 How the scout bee chooses\n")
-L.append(f"- Top-level posts **{MIN_AGE_H}–{MAX_AGE_H} hours old**, with pending rewards **at or below today's median** (≈ ${median:.2f}).\n"
+L.append((f"- Top-level posts **1 to 7 days old**, still before payout, with pending rewards **at or below the median** (≈ ${median:.2f}).\n" if WEEK else
+          f"- Top-level posts **{MIN_AGE_H}–{MAX_AGE_H} hours old**, with pending rewards **at or below today's median** (≈ ${median:.2f}).\n") +
          f"- At least **{MIN_WORDS} words**, plus a quality score: length, own photos, paragraphs, community, few external links, a **personal voice**; generic \"what is / how to / beginner's guide\" explainers, news-style articles with no personal voice, and hashtag or all-caps titles are left out.\n"
          f"- Posted **in a community**, and the author must be **part of the hive**: at least {MIN_COMMENTS_7D} comments on other people's posts in the last week, and a reputation of {MIN_REPUTATION}+.\n"
          "- **Anti-plagiarism:** a few exact sentences of each post are searched on the web; posts whose text already exists elsewhere are left out.\n"
          "- **Skipped:** authors on the public blacklists or muted in their community, flood posting, copied text, NSFW, declined payouts, "
-         "posts already linked by other newsletters or curation posts, and authors featured in the last week.\n"
+         f"posts already linked by other newsletters or curation posts, and authors featured in the last {REPEAT_AUTHOR_DAYS} days.\n"
          f"- One post per author, max {MAX_PER_COMMUNITY} per community. Authors are **linked, not tagged**, so nobody gets a notification from a bot.\n"
          "- AI-assisted posts are welcome, like any other.\n")
 L.append("\n<sub>🔥 100% of this post's rewards are **burned** (beneficiary null). Scout Bee is an open source, AI-generated bot operated by "
@@ -310,9 +316,11 @@ L.append("\n<sub>🔥 100% of this post's rewards are **burned** (beneficiary nu
          "or a hidden gem we missed? Tell us in the comments. 🌼</sub>\n")
 open(os.path.join(OUT, "post.md"), "w", encoding="utf-8").write("\n".join(L))
 
-title = f"🌼 Wildflower Watch{(' #' + NUM) if NUM else ''}: {len(final)} fresh posts still waiting for their first visit ({day})"
-meta = dict(title=title, permlink=f"wildflower-watch-{NOW.strftime('%Y-%m-%d')}",
-            description=f"{len(final)} fresh, well-made Hive posts still waiting for their first visit. Curated daily by a scout bee 🐝🌼",
+title = (f"🌼 Wildflower Watch · Best of the week{(' #' + NUM) if NUM else ''}: {len(final)} under-rewarded gems ({day})" if WEEK else
+         f"🌼 Wildflower Watch{(' #' + NUM) if NUM else ''}: {len(final)} fresh posts still waiting for their first visit ({day})")
+meta = dict(title=title, permlink=(f"wildflower-watch-week-{NOW.strftime('%Y-%m-%d')}" if WEEK else f"wildflower-watch-{NOW.strftime('%Y-%m-%d')}"),
+            description=(f"The best of the week: {len(final)} well-made Hive posts still under-rewarded, before payout. By a scout bee 🐝🌼" if WEEK else
+                         f"{len(final)} fresh, well-made Hive posts still waiting for their first visit. Curated daily by a scout bee 🐝🌼"),
             tags=["hive-170283", "curation", "hive", "newbies", "wildflowerwatch", "discovery", "aibees"],
             images=["cover.png"] if os.path.exists(os.path.join(OUT, "cover.png")) else [], community="hive-170283")
 json.dump(meta, open(os.path.join(OUT, "meta.json"), "w"), ensure_ascii=False, indent=1)
