@@ -50,6 +50,9 @@ h1{font-size:28px;margin:8px 0 4px}.sub{color:var(--muted);margin:0 0 14px}
 .det .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 12px;margin:6px 0}
 .det .k{color:var(--muted)}.det .prev{background:var(--honey-soft);border-radius:8px;padding:8px 10px;margin:8px 0;white-space:pre-wrap;max-height:260px;overflow:auto}
 .det img.cov{max-width:100%;max-height:220px;border-radius:8px;display:block;margin:6px 0}
+.box{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:8px 0}.box h3{font-size:14px;margin:0 0 4px}.box ul{margin:4px 0 0;padding-left:18px}
+.rcbar{height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:4px 0}.rcbar i{display:block;height:100%;background:var(--ok)}
+.tips{font-size:13px;white-space:pre-wrap;color:var(--muted)}
 .thumbs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.thumbs img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
 .det textarea{width:100%;min-height:80px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
 .det input[type=range]{width:160px;vertical-align:middle}.msg{font-size:13px;margin-left:6px}
@@ -73,7 +76,7 @@ footer a{color:var(--honey)}footer li{margin:2px 0}
 <li><b>Vote and comment from here</b>: log in with Hive Keychain (browser extension or the Keychain mobile app). Nothing is stored on a server: your keys never leave Keychain.</li>
 <li><b>Originality ✓</b>: a sentence of the post was searched on the web and found nowhere else, or only on the author's own pages. <b>⚠️ text also elsewhere, to check</b>: the same text is on a site under a similar name, but nothing proves it is the same author. <b>⏳ not checked yet</b>: the check runs a few posts per hour.</li>
 </ul>
-<p>Updated every hour · data: <a href="https://hafsql.mahdiyari.info">HAFSQL</a> by mahdiyari · idea by antisocialist · open source and AI-generated (MIT): <a href="https://github.com/hiveb3/scoutbee">github.com/hiveb3/scoutbee</a></p>
+<p>Updated every hour · data: <a href="https://hafsql.mahdiyari.info">HAFSQL</a> by mahdiyari · idea by antisocialist · trust, health and RC checks inspired by the <a href="https://tools.botlord.eu/">botlord toolbox</a> · open source and AI-generated (MIT): <a href="https://github.com/hiveb3/scoutbee">github.com/hiveb3/scoutbee</a></p>
 <p>Made with 💛 by <a href="https://peakd.com/@hive3">@hive3</a> · 🐝 <a href="https://peakd.com/c/hive-170283">AIBees</a> · 🎮 <a href="https://hiveb3.github.io/beetris/">BeeTris</a> · 🗳️ <a href="https://vote.hive.uno/@hive3">Vote @hive3 as witness</a></p>
 </footer></div>
 <script>
@@ -148,7 +151,31 @@ document.getElementById("list").addEventListener("click", async ev => {
   if (!box.hidden) { box.hidden = true; return; }
   box.hidden = false; box.textContent = "Loading…";
   const P = D.posts.find(x => x.a===a && x.p===p) || {};
-  const [post, prof] = await Promise.all([rpc("bridge.get_post",{author:a,permlink:p}), rpc("bridge.get_profile",{account:a})]);
+  const [post, prof, accs, rcs] = await Promise.all([rpc("bridge.get_post",{author:a,permlink:p}), rpc("bridge.get_profile",{account:a}),
+    rpc("condenser_api.get_accounts",[[a]]), rpc("rc_api.find_rc_accounts",{accounts:[a]})]);
+  const acc = (accs||[])[0] || {}, rca = (rcs && rcs.rc_accounts || [])[0];
+  // ---- trust check (public data) ----
+  const rep = prof ? prof.reputation : 25, yrs = prof && prof.created ? (Date.now() - new Date(prof.created+"Z")) / 31557600000 : 0;
+  const shared = [...((acc.owner||{}).account_auths||[]), ...((acc.active||{}).account_auths||[])].map(x => x[0]);
+  const T = [[true, "Not on the Hivewatchers / Spaminator lists (filtered by Scout Bee)"],
+             [rep >= 35, rep >= 50 ? `Strong reputation (${rep.toFixed(1)})` : rep >= 35 ? `Fair reputation (${rep.toFixed(1)})` : `Low reputation (${rep.toFixed(1)})`],
+             [yrs >= .25, yrs >= 1 ? `Established account (${yrs.toFixed(1)} years)` : yrs >= .25 ? `Young account (${Math.round(yrs*12)} months)` : `Brand-new account (${Math.round(yrs*365)} days)`],
+             [!shared.length, shared.length ? `Keys shared with @${shared.join(", @")}` : "Keys self-contained: no shared owner/active access"]];
+  const flags = T.filter(t => !t[0]).length;
+  // ---- RC meter ----
+  const RC_COMMENT = 1.15e9;   // approx. RC cost of one comment
+  let rcPct = null, rcCur = 0, rcMax = 0;
+  if (rca) { rcMax = +rca.max_rc; const m = rca.rc_manabar; rcCur = Math.min(rcMax, +m.current_mana + rcMax * (Date.now()/1000 - m.last_update_time) / 432000); rcPct = rcMax ? rcCur / rcMax * 100 : 0; }
+  // ---- account health tips for the author (optional, added to the comment) ----
+  const tips = [];
+  const unclaimed = [acc.reward_hbd_balance, acc.reward_hive_balance, acc.reward_vesting_hive].filter(x => x && parseFloat(x) > 0);
+  if (unclaimed.length) tips.push("🍯 You have rewards waiting to be claimed (" + unclaimed.join(", ").replace("VESTS","").trim() + "): open your wallet and press Claim.");
+  if (rcPct !== null && rcPct < 20) tips.push(`⚡ Your Resource Credits are low (${rcPct.toFixed(0)}%): they refill by themselves in a few days, or a friend can delegate you some.`);
+  if (!acc.proxy && (acc.witness_votes||[]).length) {
+    const ws = await Promise.all(acc.witness_votes.slice(0,30).map(w => rpc("condenser_api.get_witness_by_account",[w])));
+    const off = ws.filter(w => w && /^STM1{20}/.test(w.signing_key)).map(w => w.owner);
+    if (off.length) tips.push(`🗳️ ${off.length} of your witness votes go${off.length===1?"es":""} to ${off.length===1?"a witness":"witnesses"} that stopped producing blocks (${off.map(x=>"@"+x).join(", ")}): you could move ${off.length===1?"it":"them"} to an active one.`);
+  } else if (!acc.proxy && acc.name) tips.push("🗳️ You haven't voted for any witness yet: you have 30 free votes that help keep Hive running.");
   if (!post) { box.textContent = "Could not load the post, try again."; return; }
   const txt = (post.body||"").replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/<[^>]+>/g," ").replace(/\[([^\]]*)\]\([^)]*\)/g,"$1").replace(/https?:\/\/\S+/g,"").replace(/[#*_>`]/g,"").replace(/\n{3,}/g,"\n\n").trim();
   const imgs = [...new Set([...(post.json_metadata && post.json_metadata.image || []),
@@ -174,16 +201,29 @@ document.getElementById("list").addEventListener("click", async ev => {
     <div><span class="k">Payout in:</span> ${esc(left(post.payout_at||post.cashout_time||""))}</div>
     <div><span class="k">Quality score:</span> ${P.s||"?"} · personal voice ${P.fp||0}/100 words</div>
    </div>
+   <div class="box"><h3>🛡️ Trust check: ${flags ? `🟡 ${flags} thing${flags>1?"s":""} to review` : "🟢 looks trustworthy"}</h3><ul>${T.map(t=>`<li>${t[0]?"🟢":"🟡"} ${esc(t[1])}</li>`).join("")}</ul></div>
+   <div class="box"><h3>⚡ RC meter: ${rcPct===null?"?":rcPct.toFixed(0)+"%"} ${rcPct!==null?`· ≈ ${Math.floor(rcCur/RC_COMMENT).toLocaleString()} comments left`:""}</h3>
+    ${rcPct!==null?`<div class="rcbar"><i style="width:${Math.max(1,rcPct).toFixed(0)}%;${rcPct<20?"background:#c62828":rcPct<50?"background:var(--warn)":""}"></i></div>`:""}
+    <div class="row"><span style="font-size:13px">Give ${esc(a)} some RC:</span> <button class="rcd ghost" data-n="25">≈ 25 comments</button> <button class="rcd ghost" data-n="100">≈ 100 comments</button> <button class="rcd ghost" data-n="0">remove mine</button><span class="msg rm"></span></div>
+    <div style="font-size:12px;color:var(--muted)">An RC delegation lends your spare Resource Credits (not your HIVE): you can change or remove it any time.</div></div>
+   ${tips.length?`<div class="box"><h3>🩺 Account health tips</h3><div class="tips">${esc(tips.join("\n"))}</div>
+    <label style="font-size:13px"><input type="checkbox" class="tip"> add these friendly tips to my comment</label></div>`:""}
    <div class="row">${voted?`<span class="badge ok">You already voted ✓</span>`:`<label>Vote weight <input type="range" min="1" max="100" value="50" class="w"> <b class="wv">50%</b></label> <button class="vb">👍 Vote</button>`}<span class="msg vm"></span></div>
    <div style="margin-top:8px"><textarea class="ct" placeholder="Write a comment for ${esc(a)}…">${user?esc(SAY[Math.floor(Math.random()*SAY.length)]+"\n\n"):""}</textarea>
    <label style="font-size:13px">${CUR[a+"/"+p]?`<input type="checkbox" class="sig" disabled> signature already posted by @${esc(CUR[a+"/"+p].who)}`:`<input type="checkbox" class="sig" checked> add a small "found via Wildflower Watch" signature`}</label>
    <div class="row"><button class="cb">💬 Comment</button><span class="msg cm"></span></div></div>`;
+  box.querySelectorAll(".rcd").forEach(btn => btn.onclick = () => { if (!need()) return;
+    const n = Math.round(+btn.dataset.n * RC_COMMENT);
+    kc().requestCustomJson(user, "rc", "Posting", JSON.stringify(["delegate_rc", {from:user, delegatees:[a], max_rc:n}]),
+      n ? `Delegate ≈${btn.dataset.n} comments of RC to @${a}` : `Remove your RC delegation to @${a}`,
+      r => { box.querySelector(".rm").textContent = r.success ? (n ? "RC delegated ✓ thank you!" : "Delegation removed ✓") : "Cancelled or failed."; }); });
   const w = box.querySelector(".w"); if (w) w.oninput = () => box.querySelector(".wv").textContent = w.value+"%";
   const need = () => { if (!user) { alertBox("Log in first (button at the top)."); return false; } if (!kc()) { alertBox("Hive Keychain not found."); return false; } return true; };
   const vb = box.querySelector(".vb"); if (vb) vb.onclick = () => { if (!need()) return;
     kc().requestVote(user, p, a, +w.value*100, r => { box.querySelector(".vm").textContent = r.success ? "Voted ✓ thank you!" : "Vote cancelled or failed."; }); };
   box.querySelector(".cb").onclick = () => { if (!need()) return;
     let body = box.querySelector(".ct").value.trim(); if (!body) { box.querySelector(".cm").textContent = "Write something first."; return; }
+    const tp = box.querySelector(".tip"); if (tp && tp.checked) body += "\n\n<sub>🩺 A few friendly tips from the hive:</sub>\n" + tips.map(t => "- " + t).join("\n");
     if (box.querySelector(".sig").checked) body += "\n\n" + (BADGE ? `[![Wildflower Watch](${BADGE})](https://hiveb3.github.io/scoutbee/)\n` : "") + "<sub>🌼 Found via [Wildflower Watch](https://hiveb3.github.io/scoutbee/)</sub>";
     const perm = ("re-" + a + "-" + Date.now().toString(36)).toLowerCase().replace(/[^a-z0-9-]/g,"");
     const op = ["comment", {parent_author:a, parent_permlink:p, author:user, permlink:perm, title:"", body,
