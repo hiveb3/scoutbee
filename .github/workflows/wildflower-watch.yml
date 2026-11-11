@@ -1,0 +1,55 @@
+# Open source (MIT) · AI-generated with Claude (Anthropic), reviewed by a human · https://github.com/hiveb3/scoutbee
+# Wildflower Watch website: rebuilt every hour and published on GitHub Pages.
+name: Wildflower Watch
+on:
+  schedule:
+    - cron: "23 * * * *"        # every hour at :23 UTC
+  workflow_dispatch:            # "Run workflow" button for a manual update
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: wildflower-watch
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install psycopg2-binary
+      - name: Restore memory (originality checks already done)
+        uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+      - name: Find the posts
+        env:
+          SCOUTBEE_SITE: "1"
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+        run: python scout.py out/run
+      - name: Build the page
+        run: python build_site.py out/run site
+      - name: Save memory
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state
+          key: state-${{ github.run_id }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
