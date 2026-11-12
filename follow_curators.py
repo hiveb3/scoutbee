@@ -18,6 +18,8 @@ LOOKBACK_H      = 24        # signed comments of the last N hours
 DEFAULT_WEIGHT  = 25        # % used when the curator signed but did not vote (or voted 0)
 MAX_WEIGHT      = 100       # never above this %
 MIN_VP          = 80        # % voting power: below this the account waits (keeps its strength)
+SMALL_WEIGHT    = 25        # small votes (this % or less) still go out below MIN_VP...
+MIN_VP_SMALL    = 50        # ...down to this % of voting power
 MAX_VOTES_DAY   = 10        # per voter, every 24 hours
 LOW_HP          = 500       # a voter with less HP than this always votes at 100% (its vote is tiny anyway)
 MAX_POST_AGE_D  = 6.5       # posts older than this can't earn rewards anymore
@@ -98,7 +100,8 @@ def main():
             vp, eff = voting_power(v)
             hp = eff * HPV
             w = 100 if hp < LOW_HP else weight                       # little HP: always a full vote
-            if hp >= LOW_HP and vp < MIN_VP: print(f"{v}: VP {vp:.1f}% < {MIN_VP}%, waiting", flush=True); continue
+            floor = MIN_VP_SMALL if w <= SMALL_WEIGHT else MIN_VP    # small votes cost little: they can go out with less VP
+            if hp >= LOW_HP and vp < floor: print(f"{v}: VP {vp:.1f}% < {floor}% for a {w:.0f}% vote, waiting", flush=True); continue
             print(f"{'[dry] ' if DRY else ''}{v} votes @{a}/{p} at {w:.0f}% (curated by {', '.join(sorted(curators))}, {hp:.0f} HP, VP {vp:.1f}%)", flush=True)
             if DRY: continue
             if not os.environ.get(envk): print(f"{v}: missing {envk}, skipped", flush=True); continue
