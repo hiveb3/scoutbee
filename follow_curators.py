@@ -1,19 +1,31 @@
 #!/usr/bin/env python3
 # Open source (MIT) · AI-generated with Claude (Anthropic), reviewed by a human · https://github.com/hiveb3/scoutbee
 # Scout Bee - curation trail: when a curator signs a post with the Wildflower Watch signature,
-# @scoutbee and @pollenpatron vote the same post with the same weight the curator used
+# the hive's voting bees (VOTERS) vote the same post with the same weight the curator used
 # (a voter with little HP always votes at 100%).
 #
 # Usage:  python3 follow_curators.py            -> votes for real (keys from the environment)
 #         python3 follow_curators.py --dry-run  -> only prints what it would do
-# Keys:   SCOUTBEE_POSTING_KEY, POLLENPATRON_POSTING_KEY (posting keys only, never in the repo)
+#         python3 follow_curators.py --keys     -> shows which voting accounts have a posting key
+# Keys:   see key_for() below (posting keys only, never in the repo)
 # Needs:  pip install psycopg2-binary lighthive
 import os, sys, json, time, datetime as dt, urllib.request
 
-VOTERS = {   # account -> environment variable with its posting key
-    "scoutbee": "SCOUTBEE_POSTING_KEY",
-    "pollenpatron": "POLLENPATRON_POSTING_KEY",
-}
+# the hive's voting bees: each one follows the curators (most of them run on HP delegated by @pollenpatron)
+VOTERS = ["scoutbee", "pollenpatron", "hive3", "hivethree", "hive-170283", "hive3.guard", "beecounter",
+          "hive-3", "hive2bee3", "hive.bee-3", "bz3", "aibees", "ai-bee"]
+# Keys (posting only, never in the repo), looked up in this order for each voter:
+#   POSTING_KEY_<ACCOUNT>  e.g. POSTING_KEY_HIVE_BEE_3 for @hive.bee-3 (dots and dashes become _)
+#   TRAIL_AUTH_KEY         posting key of TRAIL_AUTH_ACCOUNT, if the voter gave that account posting authority
+#   SCOUTBEE_POSTING_KEY / POLLENPATRON_POSTING_KEY (older names, still accepted)
+def key_for(v):
+    k = os.environ.get("POSTING_KEY_" + v.upper().replace(".", "_").replace("-", "_"))
+    if not k and v == "scoutbee": k = os.environ.get("SCOUTBEE_POSTING_KEY")
+    if not k and v == "pollenpatron": k = os.environ.get("POLLENPATRON_POSTING_KEY")
+    if not k and AUTH and v in AUTHORIZED: k = os.environ.get("TRAIL_AUTH_KEY")
+    return k
+AUTH = os.environ.get("TRAIL_AUTH_ACCOUNT", "")
+AUTHORIZED = set()   # voters whose posting authority includes AUTH (filled at start)
 LOOKBACK_H      = 24        # signed comments of the last N hours
 DEFAULT_WEIGHT  = 25        # % used when the curator signed but did not vote (or voted 0)
 MAX_WEIGHT      = 100       # never above this %
@@ -23,7 +35,7 @@ MIN_VP_SMALL    = 50        # ...down to this % of voting power
 MAX_VOTES_DAY   = 10        # per voter, every 24 hours
 LOW_HP          = 500       # a voter with less HP than this always votes at 100% (its vote is tiny anyway)
 MAX_POST_AGE_D  = 6.5       # posts older than this can't earn rewards anymore
-SKIP_AUTHORS    = set(VOTERS) | {"hive3"}   # no self-votes and no votes to our own accounts
+SKIP_AUTHORS    = set(VOTERS) | {"hiveb3", "beetris.contest"}   # no self-votes and no votes to our own accounts
 STATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state", "trail.json")
 NODES = ["https://api.hive.blog", "https://api.deathwing.me", "https://api.openhive.network"]
 DRY = "--dry-run" in sys.argv
@@ -77,7 +89,13 @@ def save(s):
 
 def main():
     st = load(); now = time.time()
+    if "--keys" in sys.argv:                                          # quick check: which voters have a key
+        for v in VOTERS: print(f"{v:14} {'✓ key found' if key_for(v) else '✗ no key'}")
+        return
     for v in VOTERS: st["log"][v] = [t for t in st["log"].get(v, []) if now - t < 86400]
+    if AUTH:
+        for acc in rpc("condenser_api.get_accounts", [VOTERS]):
+            if AUTH in [x[0] for x in acc["posting"]["account_auths"]]: AUTHORIZED.add(acc["name"])
     jobs = {}
     for curator, a, p in signed_comments():
         if a in SKIP_AUTHORS or a == curator: continue           # no votes to our accounts, no self-curation
@@ -93,7 +111,7 @@ def main():
         votes = {x["voter"]: x for x in rpc("condenser_api.get_active_votes", [a, p])}
         cw = [votes[c]["percent"] / 100 for c in curators if c in votes and votes[c]["percent"] > 0 and c not in VOTERS]
         weight = min(MAX_WEIGHT, max(cw) if cw else DEFAULT_WEIGHT)
-        for v, envk in VOTERS.items():
+        for v in VOTERS:
             key = f"{v}/{a}/{p}"
             if key in st["done"] or v in votes or curators == {v}: continue   # a voter does not follow itself
             if len(st["log"][v]) >= MAX_VOTES_DAY: print(f"{v}: daily limit reached", flush=True); continue
@@ -102,12 +120,13 @@ def main():
             w = 100 if hp < LOW_HP else weight                       # little HP: always a full vote
             floor = MIN_VP_SMALL if w <= SMALL_WEIGHT else MIN_VP    # small votes cost little: they can go out with less VP
             if hp >= LOW_HP and vp < floor: print(f"{v}: VP {vp:.1f}% < {floor}% for a {w:.0f}% vote, waiting", flush=True); continue
-            print(f"{'[dry] ' if DRY else ''}{v} votes @{a}/{p} at {w:.0f}% (curated by {', '.join(sorted(curators))}, {hp:.0f} HP, VP {vp:.1f}%)", flush=True)
+            pkey = key_for(v)
+            print(f"{'[dry] ' if DRY else ''}{v} votes @{a}/{p} at {w:.0f}% (curated by {', '.join(sorted(curators))}, {hp:.0f} HP, VP {vp:.1f}%{'' if pkey else ', NO KEY'})", flush=True)
             if DRY: continue
-            if not os.environ.get(envk): print(f"{v}: missing {envk}, skipped", flush=True); continue
+            if not pkey: print(f"{v}: no posting key, skipped", flush=True); continue
             if v not in clients:
                 from lighthive.client import Client
-                clients[v] = Client(keys=[os.environ[envk]], nodes=NODES)
+                clients[v] = Client(keys=[pkey], nodes=NODES)
             from lighthive.datastructures import Operation
             try:
                 clients[v].broadcast(Operation("vote", {"voter": v, "author": a, "permlink": p, "weight": int(w * 100)}))
