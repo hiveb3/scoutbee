@@ -7,7 +7,8 @@
 import sys, os, json, html, datetime as dt, urllib.request
 
 SINCE = dt.datetime(2026, 11, 1)            # Wildflower Watch went live in November 2026
-TEAM = {"hive3", "scoutbee", "pollenpatron", "beecounter", "hiveb3", "beetris.contest"}   # our own accounts: ranked too, marked 🐝
+TEAM = {"hive3", "scoutbee", "pollenpatron", "beecounter", "hiveb3", "beetris.contest", "hivethree", "hive-170283",
+        "hive3.guard", "hive-3", "hive2bee3", "hive.bee-3", "bz3", "aibees", "ai-bee"}   # our own accounts: ranked too, marked 🐝
 NODES = ["https://api.hive.blog", "https://api.deathwing.me", "https://api.openhive.network"]
 
 def rpc(method, params):
