@@ -25,7 +25,7 @@ AI-assisted posts are welcome like any other.
 
 ## 🐝 Curation trail
 
-When a curator comments a post from the page with the **Wildflower Watch signature**, `follow_curators.py` makes **@scoutbee** and **@pollenpatron** vote the same post with the **same weight the curator used** (25% if the curator only commented; an account with under 500 HP always votes at 100%). Limits: max 10 votes a day per account, voting power above 80% (small votes of 25% or less still go out down to 50%), no votes to our own accounts, no self-curation. Every vote is public on chain.
+When a curator comments a post from the page with the **Wildflower Watch signature**, `follow_curators.py` makes the hive's voting bees (**@scoutbee**, **@pollenpatron**, **@hive3** and the other team accounts, most of them on HP delegated by @pollenpatron) vote the same post with the **same weight the curator used** (25% if the curator only commented; an account with under 500 HP always votes at 100%). Limits: max 10 votes a day per account, voting power above 80% (small votes of 25% or less still go out down to 50%), no votes to our own accounts, no self-curation. Every vote is public on chain.
 
 ## 🏆 Wildflower Cup (curation contest)
 
@@ -39,7 +39,7 @@ Every month the page shows **two cups**, each with its own podium: **🌼 most p
 | `build_site.py` | builds the web page from `candidates.json` |
 | `i18n/*.json` | the page in 12 languages (EN, ES, PT, IT, DE, FR, PL, NL, UK, JA, ZH, HI), chosen from @enrique89's ranking of Hive users by country and posts by language; the reader picks one with the 🌐 menu |
 | `leaderboard.py` | 🏆 Wildflower Cup: monthly and all-time curators leaderboard on the page (posts curated, rewards given with their votes) |
-| `follow_curators.py` | curation trail: @scoutbee and @pollenpatron follow the curators' votes (runs on our server, keys never in the repo) |
+| `follow_curators.py` | curation trail: our voting bees follow the curators' votes (runs on our server, keys never in the repo) |
 | `.github/workflows/wildflower-watch.yml` | runs both every hour on GitHub Actions and publishes the page on GitHub Pages |
 
 ## 🛠️ Run your own copy
