@@ -297,3 +297,6 @@ open(os.path.join(SITE, "index.html"), "w", encoding="utf-8").write(page.replace
 if os.path.exists("state/checked.json"):       # shared anti-plagiarism cache: the weekly run reuses it instead of searching again
     import shutil; shutil.copy("state/checked.json", os.path.join(SITE, "checked.json"))
 print("site:", os.path.join(SITE, "index.html"), len(data), "posts, generated", gen)
+# 🏆 Wildflower Cup leaderboard: added to the page right here, so the hourly workflow needs no extra step
+import subprocess
+subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "leaderboard.py"), SITE])
