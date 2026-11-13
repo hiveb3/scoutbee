@@ -65,7 +65,7 @@ footer a{color:var(--honey)}footer li{margin:2px 0}
 </style></head><body><div class="wrap">
 <div class="top"><h1>🌼 Wildflower Watch</h1><div class="login"><select id="lang" aria-label="Language" style="font:inherit;padding:5px 6px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)"></select> <span id="login"></span></div></div>
 <p class="sub" data-i18n="sub"></p>
-<div class="upd" id="upd"><span>🕐 <b data-i18n="last_update"></b> <span id="when"></span></span><span class="ago" id="ago"></span><span id="scan"></span></div>
+<div class="upd" id="upd"><span>🕐 <b data-i18n="last_update"></b> <span id="when"></span></span><span class="ago" id="ago"></span><span id="scan"></span><button id="rf" hidden style="font:inherit;font-weight:700;padding:6px 12px;border-radius:8px;border:1px solid var(--honey);background:var(--honey);color:#2a1d00;cursor:pointer"></button></div>
 <div class="bar"><input id="q" type="search" data-i18n-ph="search_ph" placeholder="Search title or author…" aria-label="Search">
 <select id="comm" aria-label="Community"><option value="" data-i18n="all_comm"></option></select>
 <select id="age" aria-label="Post age"><option value="" data-i18n="any_age"></option><option value="6" data-i18n="under6"></option><option value="12" data-i18n="under12"></option></select></div>
@@ -104,7 +104,10 @@ function tick(){
   const ms = Date.now() - gen, el = document.getElementById("ago");
   el.textContent = ago(ms); el.className = ms > 3*3600e3 ? "ago stale" : "ago";
   if (ms > 3*3600e3) el.textContent += " · " + T("stale");
+  const rf = document.getElementById("rf"); rf.hidden = !(ms > 3*3600e3); rf.textContent = RF[LANG] || RF.en;
 }
+const RF = {en:"🔄 Scout bee, refresh the page to gather fresh flowers!",it:"🔄 Ape esploratrice, ricarica la pagina per raccogliere fiori freschi!",es:"🔄 Abeja exploradora, ¡recarga la página para recoger flores frescas!",pt:"🔄 Abelha exploradora, atualize a página para colher flores frescas!",de:"🔄 Kundschafterbiene, lade die Seite neu und sammle frische Blüten!",fr:"🔄 Abeille éclaireuse, recharge la page pour cueillir des fleurs fraîches !",pl:"🔄 Pszczoło zwiadowczyni, odśwież stronę, by zebrać świeże kwiaty!",nl:"🔄 Verkennersbij, vernieuw de pagina en verzamel verse bloemen!",uk:"🔄 Бджоло-розвіднице, онови сторінку, щоб зібрати свіжі квіти!",ja:"🔄 偵察バチさん、ページを更新して新しい花を集めよう！",zh:"🔄 侦察蜂，刷新页面去采新鲜的花吧！",hi:"🔄 स्काउट मधुमक्खी, ताज़े फूल चुनने के लिए पेज रीफ़्रेश करें!"};
+document.getElementById("rf").onclick = () => { const u = new URL(location.href); u.searchParams.set("t", Date.now()); location.replace(u.toString()); };
 
 const cs = [...new Set(D.posts.map(p => p.ct))].sort();
 const sel = document.getElementById("comm"); cs.forEach(c => { const o=document.createElement("option"); o.value=o.textContent=c; sel.appendChild(o); });
