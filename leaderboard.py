@@ -8,7 +8,7 @@ import sys, os, json, html, datetime as dt, urllib.request
 
 SINCE = dt.datetime(2026, 11, 1)            # Wildflower Watch went live in November 2026
 TEAM = {"hive3", "scoutbee", "pollenpatron", "beecounter", "hiveb3", "beetris.contest", "hivethree", "hive-170283",
-        "hive3.guard", "hive-3", "hive2bee3", "hive.bee-3", "bz3", "aibees", "ai-bee"}   # our own accounts: ranked too, marked 🐝
+        "hive3.guard", "hive-3", "hive2bee3", "hive.bee-3", "bz3", "aibees", "ai-bee", "blurtbee"}   # our own accounts: ranked too, marked 🐝
 NODES = ["https://api.hive.blog", "https://api.deathwing.me", "https://api.openhive.network"]
 
 def rpc(method, params):
@@ -101,7 +101,7 @@ def inject(site, lb):
            f'<p class="note" data-i18n="lb_note"></p></section>\n')
     s = open(page, encoding="utf-8").read()
     s = s.replace("<footer>", sec + "<footer>", 1)
-    s = s.replace('<span id="scan"></span></div>', '<span id="scan"></span><a href="#curators" style="color:var(--honey)" data-i18n="top_link">🏆 Wildflower Cup</a></div>', 1)
+    s = s.replace('<span id="scan"></span>', '<span id="scan"></span><a href="#curators" style="color:var(--honey)" data-i18n="top_link">🏆 Wildflower Cup</a>', 1)
     # the page applies the translations once at start-up: run it again now that the board is in the page
     s = s.replace("</script></body>", "applyStatic();\n</script></body>", 1)
     open(page, "w", encoding="utf-8").write(s)
