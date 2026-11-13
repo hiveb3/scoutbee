@@ -111,3 +111,9 @@ if __name__ == "__main__":
     try: main(sys.argv[1])
     except Exception as e:                                         # the leaderboard must never break the page
         print("leaderboard skipped:", e, flush=True)
+    # keep the page fresh in browsers (no stale cache, reload every 30 min): see fresh_page.py
+    try:
+        import subprocess
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "fresh_page.py"), sys.argv[1]])
+    except Exception as e:
+        print("fresh_page skipped:", e, flush=True)
