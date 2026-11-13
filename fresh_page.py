@@ -14,6 +14,11 @@ JS = """<script>
   const check = () => { if (Date.now() - LOADED > 30 * 60 * 1000 && document.visibilityState === "visible" && !busy()) location.reload(); };
   setInterval(check, 60000); document.addEventListener("visibilitychange", check); })();
 </script>"""
+# a separator line between the curator's own words and the tips / Wildflower Watch banner
+s = s.replace('body += "\\n\\n<sub>" + T("tips_head")', 'body += "\\n\\n---\\n\\n<sub>" + T("tips_head")', 1)
+s = s.replace('if (box.querySelector(".sig").checked) body += "\\n\\n" + (BADGE',
+              'if (box.querySelector(".sig").checked) body += (body.includes("\\n---\\n") ? "\\n\\n" : "\\n\\n---\\n\\n") + (BADGE', 1)
+open(p, "w", encoding="utf-8").write(s)
 if "fresh_page" not in s:
     s = s.replace("<head>", "<head>" + META, 1).replace("</body>", JS + "<!-- fresh_page -->\n</body>", 1)
     open(p, "w", encoding="utf-8").write(s)
