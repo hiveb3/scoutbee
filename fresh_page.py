@@ -18,6 +18,8 @@ JS = """<script>
 s = s.replace('body += "\\n\\n<sub>" + T("tips_head")', 'body += "\\n\\n---\\n\\n<sub>" + T("tips_head")', 1)
 s = s.replace('if (box.querySelector(".sig").checked) body += "\\n\\n" + (BADGE',
               'if (box.querySelector(".sig").checked) body += (body.includes("\\n---\\n") ? "\\n\\n" : "\\n\\n---\\n\\n") + (BADGE', 1)
+# a curated card stays grey after you click one of its links (keyboard focus no longer lights it up)
+s = s.replace('.card.cur:hover,.card.cur:focus-within{opacity:.9;filter:none}', '.card.cur:hover{opacity:.9;filter:none}', 1)
 # the "add these friendly tips to my comment" box starts ticked
 s = s.replace('<input type="checkbox" class="tip">', '<input type="checkbox" class="tip" checked>', 1)
 # RC delegation buttons: show also how much Hive Power the delegated RC is worth (1 HP of stake = its VESTS x 1e6 RC)
