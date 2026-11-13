@@ -18,6 +18,8 @@ JS = """<script>
 s = s.replace('body += "\\n\\n<sub>" + T("tips_head")', 'body += "\\n\\n---\\n\\n<sub>" + T("tips_head")', 1)
 s = s.replace('if (box.querySelector(".sig").checked) body += "\\n\\n" + (BADGE',
               'if (box.querySelector(".sig").checked) body += (body.includes("\\n---\\n") ? "\\n\\n" : "\\n\\n---\\n\\n") + (BADGE', 1)
+# the "add these friendly tips to my comment" box starts ticked
+s = s.replace('<input type="checkbox" class="tip">', '<input type="checkbox" class="tip" checked>', 1)
 # RC delegation buttons: show also how much Hive Power the delegated RC is worth (1 HP of stake = its VESTS x 1e6 RC)
 if "rcHP(25)" not in s:
     s = s.replace('T("rc_n",{n:25})', 'T("rc_n",{n:25})+rcHP(25)', 1).replace('T("rc_n",{n:100})', 'T("rc_n",{n:100})+rcHP(100)', 1)
